@@ -1,5 +1,3 @@
-json
-logging
 requests
 beautifulsoup4
 lxml
@@ -7,7 +5,6 @@ textstat
 httpx
 pydantic
 bs4
-urllib
 streamlit
 supabase
 stripe
