@@ -441,12 +441,6 @@ html, body, [class*="css"] {
     overflow-wrap: anywhere;
 }
 
-button[data-baseweb="tab"] {
-    min-height: 48px !important;
-    padding: 0.75rem 1rem !important;
-    font-size: 0.98rem !important;
-    font-weight: 750 !important;
-}
 
 button[data-baseweb="tab"][aria-selected="true"] {
     color: var(--dash-text) !important;
