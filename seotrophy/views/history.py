@@ -1747,15 +1747,6 @@ def _render_audit_report(supabase, rec: dict) -> None:
     _render_report_header(report, page_url, site_title, audit_id)
     _render_top_metrics(report, scraped)
 
-    st.markdown('''<style>
-                        button[data-baseweb="tab"] {
-                        font-size: 24px;
-                        margin: 0;
-                        width: 100%;
-                        }
-                        </style>
-                ''', unsafe_allow_html=True)
-
     tabs = st.tabs([
         "Overview",
         "Metadata",
@@ -1766,7 +1757,7 @@ def _render_audit_report(supabase, rec: dict) -> None:
         "Semantics",
         "JavaScript",
         "Site Maps",
-    ])
+    ], width="stretch")
 
     with tabs[0]:
         _render_overview_tab(report, scraped)
