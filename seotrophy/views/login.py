@@ -180,7 +180,14 @@ def loginView():
     c1, c2, c3 = st.columns([1,3,1], gap="large")
     c2.image("seotrophy/static/full_logo.png", width="content")
     st.space("xxlarge")
-
+    st.markdown('''<style>
+                        button[data-baseweb="tab"] {
+                        font-size: 24px;
+                        margin: 0;
+                        width: 100%;
+                        }
+                        </style>
+                ''', unsafe_allow_html=True)
     t1, t2 = st.tabs(["Login", "Register"])
     with t1:
         st.header("Login")
