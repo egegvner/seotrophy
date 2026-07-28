@@ -2,7 +2,6 @@ import base64
 import datetime as dt
 import html
 import json
-import logging
 from typing import Any
 
 import pandas as pd
@@ -21,9 +20,6 @@ from utils import (
     render_attention_map_html,
     time_ago,
 )
-
-
-logger = logging.getLogger(__name__)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -551,7 +547,6 @@ def _download_storage_file_as_b64(bucket: str, path: str) -> str:
 
 def _reset_pdf_download(audit_id) -> None:
     st.session_state.pop(f"pdf_bytes_{audit_id}", None)
-    st.session_state.pop(f"pdf_error_{audit_id}", None)
 
 
 def _safe_display(value: Any, fallback: str = "Not detected") -> str:
@@ -1690,49 +1685,23 @@ def _render_audit_report(supabase, rec: dict) -> None:
             st.session_state.active_audit_id = None
             st.rerun()
 
-    pdf_key = f"pdf_bytes_{audit_id}"
-    pdf_error_key = f"pdf_error_{audit_id}"
-
     with action_col:
         pdf_col, json_col = st.columns(2, gap="small")
-
-        if pdf_key in st.session_state:
-            pdf_col.download_button(
-                "Download PDF",
-                data=st.session_state[pdf_key],
-                file_name=f"seotrophy_audit_{audit_id}.pdf",
-                mime="application/pdf",
-                type="primary",
-                use_container_width=True,
-                key=f"download_report_pdf_{audit_id}",
-                on_click=_reset_pdf_download,
-                args=(audit_id,),
-            )
-        elif pdf_col.button(
-            "Prepare PDF",
+        pdf_bytes = _cached_audit_pdf(
+            audit_id,
+            rec["json"],
+            json.dumps(scraped),
+            page_url,
+            site_title,
+        )
+        pdf_col.download_button(
+            "Download PDF",
+            data=pdf_bytes,
+            file_name=f"seotrophy_audit_{audit_id}.pdf",
+            mime="application/pdf",
             type="primary",
             use_container_width=True,
-            key=f"prepare_report_pdf_{audit_id}",
-        ):
-            st.session_state.pop(pdf_error_key, None)
-            try:
-                with st.spinner("Preparing PDF..."):
-                    st.session_state[pdf_key] = _cached_audit_pdf(
-                        audit_id=audit_id,
-                        report_json=rec["json"],
-                        scraped_json=json.dumps(scraped),
-                        page_url=page_url,
-                        site_title=site_title,
-                    )
-                st.rerun()
-            except Exception:
-                logger.exception("Could not generate PDF for audit %s", audit_id)
-                st.session_state[pdf_error_key] = (
-                    "PDF generation is temporarily unavailable. "
-                    "The audit dashboard and JSON export are still available."
-                )
-                st.rerun()
-
+        )
         json_col.download_button(
             "Download JSON",
             data=report.model_dump_json(indent=2),
@@ -1741,11 +1710,17 @@ def _render_audit_report(supabase, rec: dict) -> None:
             use_container_width=True,
         )
 
-    if pdf_error_key in st.session_state:
-        st.warning(st.session_state[pdf_error_key])
-
     _render_report_header(report, page_url, site_title, audit_id)
     _render_top_metrics(report, scraped)
+
+    st.markdown('''<style>
+                            button[data-baseweb="tab"] {
+                            font-size: 24px;
+                            margin: 0;
+                            width: 100%;
+                            }
+                            </style>
+                    ''', unsafe_allow_html=True)
 
     tabs = st.tabs([
         "Overview",
@@ -1757,7 +1732,7 @@ def _render_audit_report(supabase, rec: dict) -> None:
         "Semantics",
         "JavaScript",
         "Site Maps",
-    ], width="stretch")
+    ])
 
     with tabs[0]:
         _render_overview_tab(report, scraped)
@@ -1879,25 +1854,15 @@ def _render_audit_list(supabase) -> None:
                         else:
                             row = response.data[0]
                             st.session_state[pdf_key] = _cached_audit_pdf(
-                                audit_id=str(audit_id),
-                                report_json=row["json"],
-                                scraped_json=json.dumps(
-                                    _safe_json(row.get("scraped_data", {}))
-                                ),
-                                page_url=row.get("url", url),
-                                site_title=title,
+                                str(audit_id),
+                                row["json"],
+                                json.dumps(_safe_json(row.get("scraped_data", {}))),
+                                row.get("url", url),
+                                title,
                             )
-                            st.session_state.pop(f"pdf_error_{audit_id}", None)
                             st.rerun()
                     except Exception:
-                        logger.exception("Could not generate PDF for audit %s", audit_id)
-                        st.session_state[f"pdf_error_{audit_id}"] = (
-                            "PDF generation is temporarily unavailable."
-                        )
-                        st.rerun()
-
-                if f"pdf_error_{audit_id}" in st.session_state:
-                    st.error(st.session_state[f"pdf_error_{audit_id}"])
+                        st.error("Could not generate PDF for this audit.")
 
                 with menu_col.popover("Actions", use_container_width=True):
                     if not archived:
@@ -1958,5 +1923,4 @@ def historyView():
         _render_audit_report(supabase, response.data[0])
     else:
         _render_audit_list(supabase)
-
 
