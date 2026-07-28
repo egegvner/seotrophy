@@ -11,6 +11,7 @@ import pandas as pd
 import plotly.io as pio
 from playwright.sync_api import sync_playwright
 import re
+import shutil
 import tempfile
 
 import base64
@@ -27,6 +28,69 @@ import streamlit.components.v1 as components
 def _clear_query_params() -> None:
     for key in list(st.query_params.keys()):
         del st.query_params[key]
+
+
+def _find_chromium_executable() -> str | None:
+    """Return a usable system Chromium/Chrome executable when one is installed.
+
+    Streamlit Community Cloud can install Chromium through a repository-level
+    ``packages.txt`` file. Local development can continue using Playwright's
+    managed browser when no system executable is found.
+    """
+
+    candidates = [
+        os.getenv("CHROMIUM_EXECUTABLE"),
+        os.getenv("PLAYWRIGHT_CHROMIUM_EXECUTABLE"),
+        shutil.which("chromium"),
+        shutil.which("chromium-browser"),
+        shutil.which("google-chrome-stable"),
+        shutil.which("google-chrome"),
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/Applications/Chromium.app/Contents/MacOS/Chromium",
+    ]
+
+    for candidate in candidates:
+        if candidate and os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+
+    return None
+
+
+def _launch_chromium(playwright, *, extra_args: list[str] | None = None):
+    """Launch Chromium safely on Streamlit Cloud, Linux hosts, and macOS."""
+
+    launch_args = [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+    ]
+
+    for argument in extra_args or []:
+        if argument not in launch_args:
+            launch_args.append(argument)
+
+    launch_options: dict[str, Any] = {
+        "headless": True,
+        "args": launch_args,
+    }
+
+    executable_path = _find_chromium_executable()
+    if executable_path:
+        launch_options["executable_path"] = executable_path
+
+    try:
+        return playwright.chromium.launch(**launch_options)
+    except Exception as exc:
+        if executable_path:
+            detail = f"Chromium could not be launched from {executable_path}."
+        else:
+            detail = (
+                "No Chromium executable is available. Add 'chromium' to the "
+                "repository-root packages.txt file on Streamlit Community Cloud, "
+                "or run 'playwright install chromium' in a local environment."
+            )
+        raise RuntimeError(detail) from exc
 
 
 def _build_receipt_pdf(purchase_data: dict, session_id: str, event_id: str | None) -> bytes:
@@ -267,15 +331,25 @@ def _build_receipt_pdf(purchase_data: dict, session_id: str, event_id: str | Non
     """
 
     with sync_playwright() as p:
-        browser = p.chromium.launch()
-        page = browser.new_page(viewport={"width": 960, "height": 1200}, device_scale_factor=2)
-        page.set_content(html, wait_until="networkidle")
-        pdf_bytes = page.pdf(
-            format="A4",
-            print_background=True,
-            margin={"top": "16mm", "right": "16mm", "bottom": "16mm", "left": "16mm"},
-        )
-        browser.close()
+        browser = _launch_chromium(p)
+        try:
+            page = browser.new_page(
+                viewport={"width": 960, "height": 1200},
+                device_scale_factor=2,
+            )
+            page.set_content(html, wait_until="domcontentloaded")
+            pdf_bytes = page.pdf(
+                format="A4",
+                print_background=True,
+                margin={
+                    "top": "16mm",
+                    "right": "16mm",
+                    "bottom": "16mm",
+                    "left": "16mm",
+                },
+            )
+        finally:
+            browser.close()
 
     return pdf_bytes
 
@@ -990,15 +1064,25 @@ This report summarizes the current SEO, content, technical, trust, and structure
     """
 
     with sync_playwright() as p:
-        browser = p.chromium.launch()
-        page = browser.new_page(viewport={"width": 1200, "height": 1600}, device_scale_factor=2)
-        page.set_content(html_content, wait_until="networkidle")
-        pdf_bytes = page.pdf(
-            format="A4",
-            print_background=True,
-            margin={"top": "16mm", "right": "16mm", "bottom": "16mm", "left": "16mm"},
-        )
-        browser.close()
+        browser = _launch_chromium(p)
+        try:
+            page = browser.new_page(
+                viewport={"width": 1200, "height": 1600},
+                device_scale_factor=2,
+            )
+            page.set_content(html_content, wait_until="domcontentloaded")
+            pdf_bytes = page.pdf(
+                format="A4",
+                print_background=True,
+                margin={
+                    "top": "16mm",
+                    "right": "16mm",
+                    "bottom": "16mm",
+                    "left": "16mm",
+                },
+            )
+        finally:
+            browser.close()
 
     return pdf_bytes
 
@@ -1134,15 +1218,7 @@ def capture_attention_map_data(
 
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(
-                headless=True,
-                args=[
-                    "--no-sandbox",
-                    "--disable-dev-shm-usage",
-                    "--disable-gpu",
-                    "--disable-setuid-sandbox",
-                ],
-            )
+            browser = _launch_chromium(p)
 
             context = browser.new_context(
                 viewport={"width": int(viewport_width), "height": int(viewport_height)},
@@ -1244,7 +1320,6 @@ def capture_attention_map_data(
     }
 
 import base64
-import json
 from io import BytesIO
 from PIL import Image
 
@@ -1645,7 +1720,7 @@ def render_attention_map_html(
                 border-radius: 999px;
                 background: rgba(15, 23, 42, 0.88);
                 color: #ffffff;
-                font-size: 11px;
+                font-size: 10px;
                 line-height: 1.25;
                 font-weight: 700;
                 white-space: nowrap;
@@ -1975,3 +2050,4 @@ def attentionMapView() -> None:
         "This is a simulated attention model based on page structure, not real visitor tracking. "
         "For real click or scroll heatmaps, the target site would need an installed tracking script."
     )
+
