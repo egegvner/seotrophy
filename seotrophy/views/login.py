@@ -88,28 +88,6 @@ def _inject_login_styles():
             object-fit: contain;
         }
 
-        div[data-testid="stTabs"] {
-            background:
-                linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,255,255,0.90));
-            border: 1px solid rgba(231, 228, 220, 0.95);
-            border-radius: 28px;
-            padding: 1.1rem 1.15rem 1.25rem 1.15rem;
-            box-shadow: 0 28px 80px -48px rgba(20, 19, 15, 0.55);
-            backdrop-filter: blur(18px);
-        }
-
-        button[data-baseweb="tab"] {
-            width: 100%;
-            height: 2.65rem;
-            margin: 0 !important;
-            border-radius: 999px !important;
-            color: var(--ink-soft) !important;
-            font-size: 0.95rem !important;
-            font-weight: 700 !important;
-            background: transparent !important;
-        }
-
-    
         div[data-testid="stForm"] {
             border: none !important;
             padding: 0 !important;
@@ -180,15 +158,8 @@ def loginView():
     c1, c2, c3 = st.columns([1,3,1], gap="large")
     c2.image("seotrophy/static/full_logo.png", width="content")
     st.space("xxlarge")
-    st.markdown('''<style>
-                        button[data-baseweb="tab"] {
-                        font-size: 24px;
-                        margin: 0;
-                        width: 100%;
-                        }
-                        </style>
-                ''', unsafe_allow_html=True)
-    t1, t2 = st.tabs(["Login", "Register"])
+
+    t1, t2 = st.tabs(["Login", "Register"], width="stretch")
     with t1:
         st.header("Login")
         with st.form("login_form"):
