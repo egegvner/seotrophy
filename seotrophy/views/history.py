@@ -1807,5 +1807,3 @@ def historyView():
             else:
                 for audit in archived_audits:
                     render_audit_card(audit, is_vault=True)
-
-
